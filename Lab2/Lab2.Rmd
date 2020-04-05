@@ -1,0 +1,370 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+```{r}
+###############
+##    1.1    ##
+###############
+
+data <- read.csv(file="australian-crabs.csv", header=TRUE, sep=",")
+
+male_crabs <- data[data$sex == "Male",]
+female_crabs <- data[data$sex == "Female",]
+
+plot(male_crabs$CL, male_crabs$RW, col="blue", ylim = c(min(data$RW), max(data$RW)), xlim = c(min(data$CL), max(data$CL)), main = "True sexes")
+legend(x=15, y = 20, legend=c("Male crabs", "Female crabs"),col=c("blue", "red"), pch = c(1,1))
+points(female_crabs$CL, female_crabs$RW, col="red")
+```
+
+The data is quite easy to classify by linear regression. There is a obvious difference between male and female crabs, especially for higher carapace lengths. For smaller carapace lengths, the distinction is not as clear.
+
+```{r}
+###############
+##    1.2    ##
+###############
+
+library(MASS)
+lda <- lda(sex ~ CL + RW, data = data)
+prediction<- predict(lda, data)
+
+male_crabs_prediction <- data[which(prediction$class == "Male"),]
+female_crabs_prediction <- data[which(prediction$class == "Female"),]
+
+plot(male_crabs_prediction$CL, male_crabs_prediction$RW, col="blue", ylim = c(min(data$RW), max(data$RW)), xlim = c(min(data$CL), max(data$CL)), main = "LDA prediction")
+legend(x=15, y = 20, legend=c("Male crabs", "Female crabs"),col=c("blue", "red"), pch = c(1,1))
+points(female_crabs_prediction$CL, female_crabs_prediction$RW, col="red")
+
+confusion_matrix <- table(data$sex,prediction$class)
+print("Confusion matrix:")
+confusion_matrix
+cat("\nLDA missclassification rate: ", (1-sum(diag(confusion_matrix))/sum(confusion_matrix))*100, "%\n\n\n")
+```
+
+The quality of fit is considered good. There seemed to be few faulty predictions when comparing the plots, which is confirmed by the low missclassification rate.
+
+```{r}
+###############
+##    1.3    ##
+###############
+
+lda <- lda(sex ~ CL + RW, data = data, prior = c(0.1,0.9))
+#lda$prior
+prediction<- predict(lda, data)
+
+male_crabs_prediction <- data[which(prediction$class == "Male"),]
+female_crabs_prediction <- data[which(prediction$class == "Female"),]
+
+plot(male_crabs_prediction$CL, male_crabs_prediction$RW, col="blue", ylim = c(min(data$RW), max(data$RW)), xlim = c(min(data$CL), max(data$CL)), main = "LDA prediction with prior: 0.9, 0.1")
+legend(x=15, y = 20, legend=c("Male crabs", "Female crabs"),col=c("blue", "red"), pch = c(1,1))
+points(female_crabs_prediction$CL, female_crabs_prediction$RW, col="red")
+
+confusion_matrix <- table(data$sex,prediction$class)
+print("Confusion matrix with prior = 0.9, 0.1:")
+confusion_matrix
+cat("\nLDA missclassification rate with prior = 0.9, 0.1: ", (1-sum(diag(confusion_matrix))/sum(confusion_matrix))*100, "%\n\n\n")
+```
+
+1.3:
+The classification accuracy decreased. The conclusion from that may be that the new assumptions of prior probabilities is incorrect.
+
+```{r}
+###############
+##    1.4    ##
+###############
+
+#glm <- glm(sex ~ CL + RW, data = data,family=binomial(link="identity"))
+glm <- glm(sex ~ CL + RW, data = data,family=binomial(link="logit"))
+prediction <- predict(glm, data, "response")
+
+prediction <- ifelse(prediction > 0.5, "Male", "Female")
+
+male_crabs_prediction <- data[which(prediction == "Male"),]
+female_crabs_prediction <- data[which(prediction == "Female"),]
+
+plot(male_crabs_prediction$CL, male_crabs_prediction$RW, col="blue", ylim = c(min(data$RW), max(data$RW)), xlim = c(min(data$CL), max(data$CL)), main = "GLM prediction")
+legend(x=15, y = 20, legend=c("Male crabs", "Female crabs"),col=c("blue", "red"), pch = c(1,1))
+points(female_crabs_prediction$CL, female_crabs_prediction$RW, col="red")
+
+confusion_matrix <- table(data$sex,prediction)
+print("Confusion matrix with glm:")
+confusion_matrix
+cat("\nGLM missclassification rate: ", (1-sum(diag(confusion_matrix))/sum(confusion_matrix))*100, "%\n\n\n")
+
+# 0 = a*y + b*x + c <==>
+# y = (bx + c)/-a
+coef(glm)
+a <- coef(glm)[3]
+b <- coef(glm)[2]
+c <- coef(glm)[1]
+x <- data$CL
+y <- (b*x+c)/-a
+
+plot(male_crabs_prediction$CL, male_crabs_prediction$RW, col="blue", ylim = c(min(data$RW), max(data$RW)), xlim = c(min(data$CL), max(data$CL)), main = "GLM prediction")
+legend(x=15, y = 20, legend=c("Male crabs", "Female crabs"),col=c("blue", "red"), pch = c(1,1))
+points(female_crabs_prediction$CL, female_crabs_prediction$RW, col="red")
+lines(x=x, y = y)
+cat("Boundary equation: y =", b/-a, "* x + ", c/-a, "\n")
+
+```
+
+1.4:
+The logistic regression produced a nearly identical prediction as the LDA with prior equal prior probability. Only two points differed, but resulted in the same confusion matrix. 
+
+
+```{r}
+set.seed(12345)
+
+###############
+##    2.1    ##
+###############
+
+library("readxl")
+data <- read_excel("creditscoring.xls")
+
+n <- nrow(data)
+id <- sample(1:n, floor(n*0.5))
+train <- data[id,]
+id1 <- setdiff(1:n, id)
+id2 <- sample(id1, floor(n*0.25))
+valid <- data[id2,]
+id3 <- setdiff(id1,id2)
+test <- data[id3,]
+```
+
+```{r}
+###############
+##    2.2    ##
+###############
+
+library("tree")
+
+splits <- c("deviance", "gini")
+sets <- list(train,test)
+
+for (split in splits)
+{
+  tree = tree(factor(good_bad)~., data=train, split=split)
+  cat("Confusion matrix and missclassification rate for train and test data with measurement:",split, "\n\n")
+  for (set in sets){
+    prediction <- predict(tree,newdata=set, type = "class")
+    confusion_matrix <- table(set$good_bad,prediction)
+    print(confusion_matrix)
+    cat("\nMissclassification rate:",1-sum(diag(confusion_matrix))/sum(confusion_matrix), "\n\n\n")
+  }
+  cat("\n\n")
+}
+```
+
+```{r}
+
+###############
+##    2.3    ##
+###############
+
+set.seed(12345)
+tree_fit = tree(factor(good_bad)~., data=train)
+summary(tree_fit)
+plot(tree_fit)
+text(tree_fit)
+
+#Number of terminal nodes
+n <- 12
+
+trainScore=rep(0,n)
+validScore=rep(0,n)
+for(i in 2:n) {
+prunedTree=prune.tree(tree_fit,best=i)
+pred=predict(prunedTree, newdata=valid,
+type="tree")
+trainScore[i]=deviance(prunedTree)
+validScore[i]=deviance(pred)
+}
+
+ylim <- c(min(min(trainScore[2:n]),min(validScore[2:n])),max(max(trainScore[2:n]),max(validScore[2:n])))
+
+plot(2:n, trainScore[2:n], type="b", col="red", ylim = ylim)
+legend(x=2, y = 470, legend=c("Train data", "Validation data"),col=c("red", "blue"), lty = c(1,1), pch = c(1,1))
+lines(2:n, validScore[2:n], type="b", col="blue")
+text(1+which.min(trainScore[2:n]), min(trainScore[2:n])+20, labels="Min", cex=0.7, col="red")
+text(1+which.min(validScore[2:n]), min(validScore[2:n])+20, labels="Min", cex=0.7, col="blue")
+
+best <- 1+which.min(validScore[2:n])
+
+prune = prune.tree(tree_fit, best = best)
+plot(prune)
+text(prune)
+
+prediction = predict(prune, train, type="class")
+confusion_matrix <- table(train$good_bad,prediction)
+cat("\n\n\nConfusion matrix and missclassification ratio for train data:\n\n")
+confusion_matrix
+cat("Missclassification ratio:",1-sum(diag(confusion_matrix))/sum(confusion_matrix), "\n")
+
+prediction = predict(prune, test, type="class")
+confusion_matrix <- table(test$good_bad,prediction)
+cat("\n\n\nConfusion matrix and missclassification ratio for test data:\n\n")
+confusion_matrix
+cat("Missclassification ratio:",1-sum(diag(confusion_matrix))/sum(confusion_matrix), "\n")
+```
+
+When using train and validation sets, the optimal number of terminal nodes were computed as 4. However, when plotting this tree and the confusion matrix for the predictions on the test data, one can see that the tree always predicts good. This may lead to the lowest missclassification rate, but having a model that always predict the same value is not very useful.
+
+
+```{r}
+###############
+##    2.4    ##
+###############
+
+library(e1071)
+naive <- naiveBayes(factor(good_bad)~., train)
+prediction <- predict(naive, newdata = train)
+confusion_matrix <- table(train$good_bad, prediction)
+confusion_matrix
+cat("Missclassification ratio train:",1-sum(diag(confusion_matrix))/sum(confusion_matrix), "\n")
+
+prediction <- predict(naive, newdata = test)
+confusion_matrix <- table(test$good_bad,prediction) 
+confusion_matrix
+cat("Missclassification ratio test:",1-sum(diag(confusion_matrix))/sum(confusion_matrix), "\n")
+
+```
+
+When using Naive Bayes, a higher missclassification ratio is achieved.
+
+```{r}
+
+###############
+##    2.5    ##
+###############
+
+true_values <- ifelse(test$good_bad == "good", 1, 0)
+
+tree_prediction <-predict(prune, test)
+naive_prediction <- predict(naive, newdata = test, type="raw")
+
+pi_seq <- seq(0.05, 0.95, by=0.05)
+
+tree_roc <- matrix(NA,nrow=length(pi_seq), ncol=2)
+naive_roc <- matrix(NA,nrow=length(pi_seq), ncol=2)
+colnames(tree_roc) <- c("fpr", "tpr")
+colnames(naive_roc) <- c("fpr", "tpr")
+
+  for (pi in 1:length(pi_seq)) {
+    temp <- ifelse(tree_prediction[,2]>pi_seq[pi],1, 0)
+    confusion_matrix <- table(true_values,temp)
+    tree_roc[pi,1] <- confusion_matrix[2,1]/sum(confusion_matrix[2,])
+    tree_roc[pi,2] <- confusion_matrix[1,1]/sum(confusion_matrix[1,])
+    
+    temp <- ifelse(naive_prediction[,2]>pi_seq[pi],1, 0)
+    confusion_matrix <- table(true_values,temp)
+    naive_roc[pi,1] <- confusion_matrix[2,1]/sum(confusion_matrix[2,])
+    naive_roc[pi,2] <- confusion_matrix[1,1]/sum(confusion_matrix[1,])
+  }
+  tree_roc <- tree_roc[order(tree_roc[,"tpr"]),]
+  naive_roc <- naive_roc[order(naive_roc[,"tpr"]),]
+  plot(x=tree_roc[,"fpr"], y=tree_roc[,"tpr"], type='l', col="blue", xlim=c(0,1), ylim = c(0,1), ylab="TPR", xlab="FPR")
+  segments(x0=0, x1 = 1, y0 = 1, y1=0)
+  legend(0.2,1.05 ,c("Tree model", "Naive Bayes model"),col=c("blue", "red"), lty = c(1,1), cex = 0.8)
+  #lines(x=tree_roc[,"fpr"], y=tree_roc[,"tpr"], type='l', col="blue")
+  lines(x=naive_roc[,"fpr"], y=naive_roc[,"tpr"], type='l', col="red")
+
+```
+
+The naive bayes model have a greater area under the roc-curve (AUC), meaning that the model has a better ratio between probability of protection & probability of false alarm. This is probably due to the tree_model constantly predicting good.
+
+The tree model's one-sided prediction is also what makes for its roc-curve look strange.
+
+```{r}
+
+###############
+##    2.6    ##
+###############
+
+prediction <- predict(naive, newdata = train, type = "raw")
+confusion_matrix <- table(train$good_bad, prediction[,"good"]/prediction[,"bad"] > 10)
+cat("\n")
+confusion_matrix
+cat("Missclassification ratio train:",1-sum(diag(confusion_matrix))/sum(confusion_matrix), "\n")
+
+prediction <- predict(naive, newdata = test, type = "raw")
+confusion_matrix <- table(test$good_bad, prediction[,"good"]/prediction[,"bad"] > 10)
+cat("\n")
+confusion_matrix
+cat("Missclassification ratio test:",1-sum(diag(confusion_matrix))/sum(confusion_matrix), "\n")
+
+```
+
+OBSERVE that the confusion matrix different axes compared to the lab-instructions!
+
+Due to the bigger loss when faulty predicting good when it was bad (compared to predicting bad when it was good) obviously decreases the number of bad-predictions. In other words, false positive values causes more loss than false negative. The uneven loss function naturally increases the missclassification rate, but achieves a smaller loss. 
+
+Total loss for predictions on the test data in this task: 3*10+150*1 = 153
+Total loss for predictions on the test data in task 4: 23*10+71*1 = 301
+
+```{r}
+###############
+##    4.1    ##
+###############
+
+library(factoextra)
+data <- read.csv2("NIRspectra.csv", sep = ';', dec=',', colClasses = "numeric")
+x <- data.frame(data[, !names(data) %in% c("Viscosity")] )
+prc <- prcomp(x=x, scale. = TRUE)
+fviz_eig(prc)
+#summary(prc)
+
+#prc$sdev
+cumulative_var <- prc$sdev^2/sum(prc$sdev^2)
+
+fraction <- 0
+for (c in 1:length(cumulative_var)){
+  fraction <- fraction + cumulative_var[c]
+  cat(c,"variables explain ", fraction*100, "% of the total variance\n")
+ if (fraction > 0.99) {
+   break
+ }
+}
+plot(x = prc$x[,1], y = prc$x[,2], xlab="PC1", ylab = "PC2")
+
+```
+
+According to the plot, a reasonable number of PC:s to select would be 2, since the other's fraction of the total variance is insignificant.
+Yes, there are a some unusual diesel fuels according to the plot; A few diesel fuels have siginificant higher PC1-values.
+
+```{r}
+###############
+##    4.2    ##
+###############
+
+eigenvectors <- prc$rotation
+
+plot(eigenvectors[,1])
+plot(eigenvectors[,2])
+```
+Yes PCP2 is mainly described by a few features (Most features have relatively low values)
+
+```{r}
+
+###############
+##    4.3    ##
+###############
+
+library(fastICA)
+set.seed(12345)
+ica <- fastICA(x, n.comp = 2,verbose = TRUE)
+summary(ica)
+
+w_prime <- ica$K %*% ica$W
+
+plot(w_prime[,1])
+plot(w_prime[,2])
+
+plot(x=ica$S[,1], y=ica$S[,2])
+```
+W' and the trace plots have very similar shape.
+
+The score plots are mirror images of each other.
+
+The interpretation is that the W’ is the weight vector, which gives the weights of each feature when mapping into the independent component that matches the W’ vector.

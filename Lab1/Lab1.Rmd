@@ -1,0 +1,355 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+
+
+```{r}
+#1.1
+
+library("readxl")
+data <- read_excel("spambase.xlsx")
+n <- dim(data)[1]
+set.seed(12345)
+id <- sample(1:n, floor(n*0.5))
+train <- data[id,]
+test <- data[-id,]
+```
+
+```{r}
+# 1.2
+
+glm <- glm(data = train, formula = Spam ~ ., family = binomial)
+
+glmTrain <- predict(glm, newdata = train)
+glmTrain <- ifelse(glmTrain > 0.5, 1, 0)
+matrixTrain <- table(glmTrain,train$Spam)
+missClassRateTrain <- 1-sum(diag(matrixTrain))/sum(matrixTrain)
+matrixTrain
+missClassRateTrain
+
+glmTest <- predict(glm, newdata = test)
+glmTest <- ifelse(glmTest > 0.5, 1, 0)
+matrixTest <- table(glmTest,test$Spam)
+missClassRateTest <- 1-sum(diag(matrixTest))/sum(matrixTest)
+matrixTest
+missClassRateTest
+```
+
+The missclassification rate are slightly higher for the test data than for the train data. It makes sense, since the prediction model is based on the train data, and therefore the prediction accuracy should be higher on the train data.
+
+One can also note that the majority of missclassifications come from spam emails NOT being classified as spam. That sort of missclassfication may be considered less severe than the other way around.
+
+
+```{r}
+#1.3
+glmTrain <- predict(glm, newdata = train)
+glmTrain <- ifelse(glmTrain > 0.8, 1, 0)
+matrixTrain <- table(glmTrain,train$Spam)
+missClassRateTrain <- 1-sum(diag(matrixTrain))/sum(matrixTrain)
+matrixTrain
+missClassRateTrain
+
+glmTest <- predict(glm, newdata = test)
+glmTest <- ifelse(glmTest > 0.8, 1, 0)
+matrixTest <- table(glmTest,test$Spam)
+missClassRateTest <- 1-sum(diag(matrixTest))/sum(matrixTest)
+matrixTest
+missClassRateTest
+```
+
+The new classification lead to worse results, and that the predictions on the train data were worse than on the test data which is notable.
+
+As stated in the previous task, most missclassifications depends on spam emails not being classified as spam. The new classification model increased those missclassifications even more for obvious reasons.
+
+```{r}
+#1.4
+
+library(kknn)
+kknnTrain <- kknn(formula = Spam ~. , train = train, test = train, k = 30)
+kknnTrain <- ifelse(kknnTrain$fitted.values > 0.5, 1, 0)
+matrixTrain <- table(kknnTrain,train$Spam)
+missClassRateTrain <- 1-sum(diag(matrixTrain))/sum(matrixTrain)
+matrixTrain
+missClassRateTrain
+
+kknnTest <- kknn(formula = Spam ~. , train = train, test = test, k = 30)
+kknnTest <- ifelse(kknnTest$fitted.values > 0.5, 1, 0)
+matrixTest <- table(kknnTest,test$Spam)
+missClassRateTest <- 1-sum(diag(matrixTest))/sum(matrixTest)
+matrixTest
+missClassRateTest
+```
+
+The nearest neighbor classification performed slightly worse on the train data, and signficantly worse on the test data. In this case, most missclassifications come from emails being classified as Spam, even though they weren't.
+
+
+```{r}
+#1.5
+
+kknnTrain <- kknn(formula = Spam ~. , train = train, test = train, k = 1)
+kknnTrain <- ifelse(kknnTrain$fitted.values > 0.5, 1, 0)
+matrixTrain <- table(kknnTrain,train$Spam)
+missClassRateTrain <- 1-sum(diag(matrixTrain))/sum(matrixTrain)
+matrixTrain
+missClassRateTrain
+
+kknnTest <- kknn(formula = Spam ~. , train = train, test = test, k = 1)
+kknnTest <- ifelse(kknnTest$fitted.values > 0.5, 1, 0)
+matrixTest <- table(kknnTest,test$Spam)
+missClassRateTest <- 1-sum(diag(matrixTest))/sum(matrixTest)
+matrixTest
+missClassRateTest
+```
+
+When K = 1, the classification only looks and the nearest neighbor when classifying. This leads to 0% missclassification rate when predicting the train data, since the model was based on that data set. However, when predicting the test data, the predictions are worse. This is an example of overfitting the train data.
+
+
+```{r}
+# 2.1
+
+data <- read_excel("machines.xlsx")
+```
+
+```{r}
+# 2.2
+
+loglik_own <- function(theta, x)
+{
+  return (sum(log(theta*exp(-theta*x))))
+}
+
+thetas <- c(seq(from = 0.1, to = 4, length.out = 100))
+loglikes <- matrix(data = NA, nrow = length(thetas))
+
+for (t in 1:length(thetas))
+{
+  loglikes[t] <- loglik_own(theta = thetas[t], x = data)
+}
+
+yMax <- max(loglikes)
+xMax <- thetas[which.max(loglikes)]
+plot(x=thetas, y = loglikes, type = 'l', col = "blue")
+points(x = xMax, y = yMax, col = "green", cex = 2)
+text(x = xMax, y = 1.3*yMax, labels=round(xMax, digits = 3))
+```
+
+The distribution type of X is an exponential distribution.
+
+
+```{r}
+#2.3
+
+loglikes6 <- matrix(data = NA, nrow = length(thetas))
+
+for (t in 1:length(thetas))
+{
+  loglikes6[t] <- loglik_own(theta = thetas[t], x = data$Length[1:6])
+}
+
+ylim <- c((min(min(loglikes),min(loglikes6))),(max(max(loglikes),max(loglikes6))))
+
+plot(x=thetas, y = loglikes, type = 'l', col = "blue", ylim = ylim)
+points(x = xMax, y = yMax, col = "green", cex = 2)
+text(x = xMax, y = yMax, labels=round(xMax, digits = 3))
+
+lines(x = thetas, y = loglikes6, col = "red")
+yMax6 <- max(loglikes6)
+xMax6 <- thetas[which.max(loglikes6)]
+points(x = xMax6, y = yMax6, col = "green", cex = 2,)
+text(x = xMax6, y = yMax6, labels=round(xMax6, digits = 3))
+legend(xMax6*0.9, yMax/2, legend=c("All data", "6 first values"),col=c("blue", "red"), lty=c(1,1), cex=0.8)
+
+```
+
+The theta that provides the maximum likelyhood is more reliable in the first case, since more data was used to calculate theta. One can NOT make the conclusion that the second theta is better due to higher log-likelyhood.
+
+```{r}
+
+# 2.4
+loglik_own2 <- function(theta, x, lambda)
+{
+  prior <- lambda*exp(-lambda*theta)
+  return (loglik_own(theta,x)+log(prior))
+}
+
+loglikes2 <- matrix(data = NA, nrow = length(thetas))
+lambda <- 10
+
+for (t in 1:length(thetas))
+{
+  loglikes2[t] <- loglik_own2(theta = thetas[t], x = data, lambda = lambda)
+}
+
+ylim <- c((min(min(loglikes),min(loglikes2))),(max(max(loglikes),max(loglikes2))))
+
+yMax <- max(loglikes2)
+xMax <- thetas[which.max(loglikes2)]
+plot(x=thetas, y = loglikes2, type = 'l', col = "red", ylim = ylim)
+points(x = xMax, y = yMax, col = "green", cex = 2)
+text(x = xMax, y = yMax, labels=round(xMax, digits = 3))
+
+lines(x = thetas, y = loglikes, col = "blue")
+yMax <- max(loglikes)
+xMax <- thetas[which.max(loglikes)]
+points(x = xMax, y = yMax, col = "green", cex = 2,)
+text(x = xMax, y = yMax, labels=round(xMax, digits = 3))
+legend(xMax*1.5, yMax, legend=c("Marginal log likelihood", "Joint log likelihood"),col=c("red", "blue"), lty=c(1,1), cex=0.8)
+```
+The values computed i 2.4 (red line) is the joint log likelihood of X and theta. That is, the log probability of theta, and the probability of x (given theta).
+
+Previously the marginal log likelihood of x was computed.
+That is,the probability of x (given theta).
+
+```{r}
+# 2.5
+
+set.seed(12345)
+n <- 50
+breaks <- 12
+theta <- thetas[which.max(loglikes)]
+samples <- rexp(n, theta)
+hist(samples, breaks = breaks)
+hist(data$Length, breaks = breaks)
+```
+
+The histograms shows that the actual observations and the sampled observations have similar distrubtion, meaning that the estimated value of theta is quite good.
+
+
+```{r}
+# 4.1
+library("readxl")
+
+data <- read_excel("tecator.xlsx")
+
+plot(x = data$Moisture, y = data$Protein)
+lin_fit <- lm(data$Protein ~ data$Moisture)
+abline(lin_fit)
+summary <- summary(lin_fit)
+cat("Standard deviation: ", summary(lin_fit)$sigma, "\n")
+cat("R squared: ", summary(lin_fit)$r.squared, "\n")
+```
+A linear model describes the data quite well, as shown in th plot. This is confirmed by the relavively small vaules of standard deviation and r squared-value.
+
+
+```{r}
+# !diagnostics off
+
+# 4.3
+
+set.seed(12345)
+id <- sample(1:nrow(data), floor(nrow(data)*0.5))
+train <- data[id,]
+test <- data[-id,]
+
+if (nrow(test) != nrow(train))
+{
+  test <- test[1:nrow(train),]
+}
+
+i <- 6
+
+MSE <- matrix(NA,nrow = i, ncol = 2)
+colnames(MSE) <- c("MSE traindata", "MSE testdata")
+rownames(MSE) <- paste("i = ", 1:i)
+
+for (m in 1:i) {
+  model <- lm(train$Moisture ~ poly(train$Protein,m))
+  MSE[m,1] <- mean((train$Moisture-predict(model,train))^2)
+  MSE[m,2] <- mean((test$Moisture-predict(model,test))^2)
+}
+
+plot(x=1:i, y = MSE[,1], type = 'b', ylab = "MSE", xlab = "i")
+legend(1, mean(MSE[,1]), legend=c("Train data", "Test data"),col=c("black", "red"), lty=c(1,1), cex=0.8)
+par(new = TRUE)
+plot(x=1:i, y = MSE[,2], type = "b", axes = FALSE, xlab = "", ylab = "", col = "red")
+axis(side=4, at = pretty(range(MSE[,2])), col="red")
+
+```
+According to the plot, the best model when predicting the train data is M1, and the best model when predicting the test data is M6.
+
+For the train data, the MSE decreases the higher polynomial degree the model has.
+For the test data, the MSE decreases at first, but then increases as the polynom degree increases.
+The reason for this is that the train data gets overfitted once the polynomial degree increases (the model gets more complex). Therefore, the MSE becomes smaller and smaller when predicting the train data. On the other hand, when predicting the test data, the MSE starts to increase at certain point (in this case at i=4), and this is where the model starts overfitting the train data.
+
+As i increases, the bias error decreases while the variance increases. This means that the model fits the train data better, but the model becomes more complex which may lead to worse prediction accuracy on the test data. This phenomen is observed in the plot. The ideal model has a good trade off between bias and variance, in other words, not underfitted and not overfitted. This is however easier said than done.
+
+
+```{r}
+
+# 4.4
+library("readxl")
+
+data <- read_excel("tecator.xlsx")
+
+library(MASS)
+predict_data <- (data[2:102])
+
+model <- lm(Fat ~ ., data = as.data.frame(predict_data))
+
+invisible(capture.output(model <- stepAIC(model,direction="both")))
+
+anova <- model$anova
+#anova
+model$call
+cat("Number of variables selected: " , 100-(nrow(anova)-1), "\n")
+
+```
+
+
+
+```{r}
+# 4.5
+
+library(glmnet)
+
+channels <- data[,2:101]
+fat <- data[,102]
+
+
+ridge_model <- glmnet(x=as.matrix(channels),y=as.matrix(fat), alpha = 0)
+plot(ridge_model, xvar="lambda")
+
+
+
+```
+As lambda increases, the coefficients diverge towards zero.
+
+
+```{r}
+
+# 4.6
+
+lasso <- glmnet(as.matrix(channels),as.matrix(fat), alpha = 1)
+plot(lasso, xvar="lambda")
+```
+
+The lasso regression adds a penalty for non-zero coefficients by penalizing sum of absolute values. This results in coefficients being set to zero relatively quickly. 
+
+The ridge regression on the other hand penalizes the sum of squared coefficients, resulting in coefficients never reaching zero (unless lambda goes infinity). 
+```{r}
+
+# 4.7
+#lambda <- seq(0,1,length.out = 20)
+#set.seed(12345)
+#lambda=seq(0,1,0.001)
+lambda=seq(0,1,length.out=1000)
+lambda=seq(0,1,0.001)
+
+lasso_cv <- cv.glmnet(as.matrix(channels), as.matrix(fat), alpha=1, lambda=lambda)
+plot(lasso_cv)
+cat("Lowest lambda considered: ", min(lasso_cv$lambda),"\n")
+cat("Lambda.min (lambda that generates lowest cross validated mean error): ", lasso_cv$lambda.min, "\n")
+cat("cvm at Lambda.min: ", lasso_cv$cvm[which.min(lasso_cv$lambda)], "\n")
+cat("Coefficients used at Lambda.min: ", lasso_cv$nzero[which.min(lasso_cv$lambda)], "\n")
+```
+The CV scores decreases as lambda increases. That is, the model fits the data better and better. Therefore the best CV score is achieved when lambda = 0.
+
+
+
+#4.8
+
+In 4.4 the channels, that proved to the best when predicting fat, were chosen. The channels that didn't provide any further information, that could make the prediction more accurate, were eliminated in the final model.
+
+In 4.7, the penalty factor's effect on the cross validated mean error was examined. Naturally, the model was best fitted to the data when the penalty factor was equal to zero. When the penalty factor increases, the model gets less fitted to the data but meanwhile, the model becomes less complex. If the model was valuated on some test data, it probably would show that the penalty factor should have a value higher than 0 in order to prevent overfitting the train data.
